@@ -1,0 +1,178 @@
+"""
+        ****************************************************************************************************************************************
+                Author      : SENTHIL SUNDARESAN
+                Created On  
+                Purpose     : DB READ AND CREATE CSV
+                Usage       : Ex: To read the suspended processes
+                Parameters  : Inline parameters
+        ****************************************************************************************************************************************       
+"""
+import re
+import pyodbc
+import csv
+import pywintypes
+import pythoncom
+import shutil
+import os
+import win32api
+import win32com.client
+import sys
+from sys import exit
+import time
+"""
+        ****************************************************************************************************************************************
+                        MAIL BASED CONSTANTS AND VARIABLES
+        ****************************************************************************************************************************************    
+"""
+MAIL_TO="def@mailserver.com"
+#MAIL_CC="abc@mailserver.com"
+FILE_NAME="out.csv"
+MAIL_SUBJECT="DB Read and Results"
+OUTLOOK_APP="Outlook.Application"
+MAPI_SSN="MAPI.session"
+OL='Outlook'
+
+"""
+        ****************************************************************************************************************************************
+                                                        HTML BASED CONSTANTS AND VARIABLES
+        ****************************************************************************************************************************************
+"""
+BANNER_TOP="""<html>\n            
+            <br>
+            <table border=0 cellspacing=0 cellpadding=0 width='48%' style='width:48.5%;margin-left:0.4pt;background:blue;'>
+            <tr style='height:6.5pt;'>
+            <td width='30%' colspan=3 valign=top style='width:30.84%;background:red;padding:0cm 5.4pt 0cm 5.4pt;height:6.5pt;'></td>
+            </tr>
+            </table>
+            <table border=0 cellspacing=0 cellpadding=0 width='48%' style='width:80.5%;margin-left:0.4pt;background:blue;'>
+            <tr style='height:6.5pt;'>
+            <td width='50%' colspan=3 valign=top style='width:50.84%;background:yellow;padding:0cm 5.4pt 0cm 5.4pt;height:6.5pt;'></td>
+            </tr>
+            </table>
+            <table border=0 cellspacing=0 cellpadding=0 width='99%' style='width:98.5%;margin-left:0.4pt;background:blue;'>
+            <tr style='height:6.5pt'>
+              <font style='font-size:24px' color='white'>
+              <td width='100%' colspan=5 valign=top style='width:100.0%;background:lime;padding:0cm 5.4pt 0cm 5.4pt;height:6.5pt'>Suspended processes</td>
+            </font>
+            </tr>
+            </table><br><br>"""
+
+BANNER_BOTTOM="""<br><br>
+                <table border=0 cellspacing=0 cellpadding=0 width='99%' style='width:98.5%;margin-left:0.4pt;background:gray;'>
+                 <tr style='height:6.5pt'>
+                  <td width='100%' colspan=5 valign=top style='width:100.0%;background:red;padding:0cm 5.4pt 0cm 5.4pt;height:6.5pt'>
+                  </td>
+                 </tr>
+                 <tr style='height:6.5pt;'>
+                  <td width='16%' valign=top style='width:16.36%;background:white;padding:0cm 5.4pt 0cm 5.4pt;height:6.5pt;'></td>
+                  <td width='83%' colspan=4 valign=top style='width:83.64%;background:yellow;padding:0cm 5.4pt 0cm 5.4pt;height:6.5pt;'></td>
+                 </tr>
+                 <tr style='height:6.5pt;'>
+                  <td width='50%' colspan=3 valign=top style='width:50.84%;background:white;padding:0cm 5.4pt 0cm 5.4pt;height:6.5pt;'></td>
+                  <td width='49%' colspan=2 valign=top style='width:49.16%;background:lime;padding:0cm 5.4pt 0cm 5.4pt;height:6.5pt;'>
+                  </td>
+                 </tr>
+                </table>
+                </html>
+            </html>"""
+FORMAT=time.strftime("%Y%m%d")
+FILE_NAME="DBResults" + FORMAT + ".csv"
+TABLE_START="<table width='1200' border='3' bordercolor='5E5A80' cellspacing='2' cellpadding='2'>\n"
+TABLE_END="</table>\n<br>"
+TABLE_HEADERS_START="<th align='center' bgcolor='5E5A80'><font style='font-size:14px' color='white'>"
+TABLE_HEADERS_END="</font></th>\n"
+TABLE_DATA_START="<td align='center'><font style='font-size:14px' color='5E5A80'>"
+TABLE_DATA_END="</font></td>\n"
+TABLE_ROW_START="<tr>\n"
+TABLE_ROW_END="</tr>\n"
+EMPTY_TABLE=""
+"""
+        ****************************************************************************************************************************************
+                                                        DB BASED CONSTANTS AND VARIABLES
+        ****************************************************************************************************************************************
+"""
+
+CON_STRING='DSN=DB_DSN'
+SQL="select * from table"
+PROCESS_TYPE="SUSPENDED"
+SP_ID_RANGE="51"
+"""
+        ****************************************************************************************************************************************
+                                                        FILE BASED CONSTANTS AND VARIABLES
+        ****************************************************************************************************************************************
+"""
+READ_BINARY="rb"
+WRITE_TEXT="wt"
+
+"""
+        ****************************************************************************************************************************************
+                                                        EXECUTE THE SQL
+        ****************************************************************************************************************************************
+"""
+ 
+def striplist(l):
+    return([y.strip() for y in l])
+
+def htmlTableDataColumn(C):
+    return(["<td>" + d + "</td>"])
+
+def SqlToCSV():
+    DBCon = pyodbc.connect(CON_STRING)
+    SPCursor = DBCon.cursor()
+    SPCursor.execute(SQL)
+    #print SPCursor.rowcount
+    csv_writer = csv.writer(open(FILE_NAME,WRITE_TEXT))
+    csv_writer.writerow([i[0] for i in SPCursor.description]) #write headers
+    for x in SPCursor:
+        csv_writer.writerow(x)        
+        #if x[1].rstrip()== PROCESS_TYPE and x[0] > SP_ID_RANGE:
+            #csv_writer.writerow(x)        
+    
+    del csv_writer #this will close the CSV file
+
+def htmlCreator(filename):
+    """
+        TO READ THE CSV AND CONVERT TO HTML    
+    """    
+    html=BANNER_TOP + TABLE_START
+    row_counter=1
+    csv_file=open(filename,READ_BINARY)
+    csv_reader=csv.reader(csv_file)
+    for row in csv_reader:        
+        html=html + TABLE_ROW_START    
+        for cell in row:
+            if row_counter==1:
+                html=html + TABLE_HEADERS_START + cell.rstrip() + TABLE_HEADERS_END
+            else:
+                html=html + TABLE_DATA_START + cell.rstrip() + TABLE_DATA_END
+        row_counter=0
+        html=html + TABLE_ROW_END
+    html=html+ TABLE_END + BANNER_BOTTOM
+    return html
+
+def main():
+    """
+        Main
+    """    
+    SqlToCSV()
+    shutil.copyfile(FILE_NAME,"file_path" + FILE_NAME)
+    #checkRowCount()
+    data = htmlCreator(FILE_NAME)
+    session = win32com.client.Dispatch(MAPI_SSN)
+    o = win32com.client.Dispatch(OUTLOOK_APP)
+    session.Logon(OL)
+    inbox = session.inbox
+    Msg = o.CreateItem(0)
+    Msg.To = MAIL_TO
+    #Msg.Cc = MAIL_CC
+    Msg.Subject = MAIL_SUBJECT
+    Msg.HTMLBody = data
+    Msg.Send()
+  
+if __name__ == '__main__':
+    main()
+
+   
+ 
+
+ 
